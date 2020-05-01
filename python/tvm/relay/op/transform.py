@@ -122,7 +122,7 @@ def transpose(data, axes=None):
     """
 
     if axes is not None:
-        axes = list(axes)
+        axes = axes.type_annotation.shape # change here
     return _make.transpose(data, axes)
 
 
