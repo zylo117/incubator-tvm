@@ -1183,7 +1183,12 @@ def _test_logical_binary(logical_bin_op, data):
     with tf.Graph().as_default():
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype='bool', name='in_0'),
                    array_ops.placeholder(shape=data[1].shape, dtype='bool', name='in_1')]
-        out = logical_bin_op(in_data[0], in_data[1], name='out')
+        if logical_bin_op == math_ops.logical_not:
+            out = math_ops.logical_or(in_data[0], in_data[1], name='out1')
+            out = logical_bin_op(out, name='out')
+        else:
+            out = logical_bin_op(in_data[0], in_data[1], name='out')
+
         compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
 
 def _test_forward_logical_and(data):
@@ -1194,6 +1199,10 @@ def _test_forward_logical_or(data):
     """ One iteration of logical or """
     return _test_logical_binary(math_ops.logical_or, data)
 
+def _test_forward_logical_not(data):
+    """ One iteration of logical not """
+    return _test_logical_binary(math_ops.logical_not, data)
+
 def test_all_logical():
     data = [np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool'),
             np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool')]
@@ -1201,6 +1210,7 @@ def test_all_logical():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_forward_logical_and(data)
         _test_forward_logical_or(data)
+        _test_forward_logical_not(data)
 
 #######################################################################
 # Zeros like
@@ -1929,25 +1939,6 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
-#######################################################################
-# SSD Mobilenet
-# -------------
-
-def test_forward_ssd_mobilenet_v1():
-    """Test the SSD Mobilenet V1 TF Lite model."""
-    # SSD MobilenetV1
-    tflite_model_file = tf_testing.get_workload_official(
-        "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28_nopp.tgz",
-        "ssd_mobilenet_v1_coco_2018_01_28_nopp.tflite")
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    np.random.seed(0)
-    data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
-    tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=2)
-    for i in range(2):
-        tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
-                                    rtol=1e-5, atol=2e-5)
 
 #######################################################################
 # MediaPipe
@@ -2045,7 +2036,6 @@ if __name__ == '__main__':
     test_forward_mobilenet_v3()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
-    test_forward_ssd_mobilenet_v1()
     test_forward_mediapipe_hand_landmark()
 
     # End to End quantized
