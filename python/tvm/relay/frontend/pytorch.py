@@ -1287,7 +1287,8 @@ def _pad():
     def _impl(inputs, input_types):
         data = inputs[0]
         padding = inputs[1]
-        pad_width = list(zip(padding, padding))
+        pad_v = padding.type_annotation.shape  # change here and next line
+        pad_width = [[0, 0], [0, 0], [pad_v[2], pad_v[3]], [pad_v[0], pad_v[1]]]
         pad_value = inputs[2]
         return _op.nn.pad(data, pad_width, pad_value)
     return _impl
